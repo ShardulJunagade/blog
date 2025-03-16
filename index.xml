@@ -10,7 +10,7 @@
 <atom:link href="http://localhost:6346/index.xml" rel="self" type="application/rss+xml"/>
 <description>shardul&#39;s blog</description>
 <generator>quarto-1.6.42</generator>
-<lastBuildDate>Sun, 16 Mar 2025 00:00:00 GMT</lastBuildDate>
+<lastBuildDate>Sat, 15 Mar 2025 18:30:00 GMT</lastBuildDate>
 <item>
   <title>Post With Code</title>
   <dc:creator>Harlow Malloc</dc:creator>
@@ -30,7 +30,7 @@
   <category>code</category>
   <category>analysis</category>
   <guid>http://localhost:6346/posts/post-with-code/</guid>
-  <pubDate>Sun, 16 Mar 2025 00:00:00 GMT</pubDate>
+  <pubDate>Sat, 15 Mar 2025 18:30:00 GMT</pubDate>
   <media:content url="http://localhost:6346/posts/post-with-code/image.jpg" medium="image" type="image/jpeg"/>
 </item>
 <item>
@@ -52,7 +52,7 @@
  ]]></description>
   <category>news</category>
   <guid>http://localhost:6346/posts/welcome/</guid>
-  <pubDate>Thu, 13 Mar 2025 00:00:00 GMT</pubDate>
+  <pubDate>Wed, 12 Mar 2025 18:30:00 GMT</pubDate>
 </item>
 </channel>
 </rss>
