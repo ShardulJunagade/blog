@@ -2,14 +2,32 @@ project:
   type: website
 
 website:
-  title: "blog"
+  title: "shardul's blog"
+  site-url: http://localhost:6346/
+  description: "shardul's blog"
   navbar:
     right:
-      - about.qmd
+      # - about.qmd
+      - text: about
+        href: https://sharduljunagade.github.io/
+      - text: blog
+        href: https://sharduljunagade.github.io/blog/
+      - text: projects
+        href: https://sharduljunagade.github.io/projects/
+      - text: repositories
+        href: https://sharduljunagade.github.io/repositories/
+      - text: cv
+        href: https://sharduljunagade.github.io/cv/
       - icon: github
-        href: https://github.com/
+        href: https://github.com/ShardulJunagade/blog
+      - icon: linkedin
+        href: https://www.linkedin.com/in/shardul-junagade/
       - icon: twitter
-        href: https://twitter.com
+        href: https://twitter.com/Sh4rdulX
+      # - icon: rss
+      #   href: index.xml
+  search: 
+    keyboard-shortcut: [/, s, f]
 format:
   html:
     theme:
