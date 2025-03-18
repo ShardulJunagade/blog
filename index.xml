@@ -6,37 +6,3269 @@
       version="2.0">
 <channel>
 <title>shardul&#39;s blog</title>
-<link>http://localhost:6346/</link>
-<atom:link href="http://localhost:6346/index.xml" rel="self" type="application/rss+xml"/>
+<link>https://sharduljunagade.github.io/blog/</link>
+<atom:link href="https://sharduljunagade.github.io/blog/index.xml" rel="self" type="application/rss+xml"/>
 <description>shardul&#39;s blog</description>
 <generator>quarto-1.6.42</generator>
-<lastBuildDate>Sat, 15 Mar 2025 18:30:00 GMT</lastBuildDate>
+<lastBuildDate>Thu, 27 Feb 2025 00:00:00 GMT</lastBuildDate>
 <item>
-  <title>Post With Code</title>
-  <dc:creator>Harlow Malloc</dc:creator>
-  <link>http://localhost:6346/posts/post-with-code/</link>
+  <title>Building a Solar Panel Detector</title>
+  <dc:creator>Shardul Junagade</dc:creator>
+  <link>https://sharduljunagade.github.io/blog/posts/solar_panel_detector/solar_panel_detector.html</link>
   <description><![CDATA[ 
 
 
 
 
 
-<p>This is a post with executable code.</p>
+<section id="building-a-solar-panel-detector" class="level1">
+<h1>Building a Solar Panel Detector</h1>
+<!-- 
+Author: Shardul Junagade
+
+Date: 27 February 2025 -->
+<p>In this notebook, we will build a solar panel detector that can detect solar panels in aerial images. We’ll use the YOLOv12 model, which is the latest state-of-the-art object detection model from Ultralytics, to identify and locate solar panels in high-resolution aerial imagery.</p>
+<p>This project will demonstrate:</p>
+<ul>
+<li>Data preprocessing and exploration of the Solar Panel Object Labels dataset</li>
+<li>Implementation of evaluation metrics (IoU, AP)</li>
+<li>Training and fine-tuning of the YOLOv12 model</li>
+<li>Evaluation of model performance on test data</li>
+<li>Visualization and interpretation of results</li>
+</ul>
+<section id="importing-libraries" class="level3">
+<h3 class="anchored" data-anchor-id="importing-libraries">Importing Libraries</h3>
+<div id="cell-3" class="cell" data-execution_count="2">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> torch</span>
+<span id="cb1-2"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">from</span> ultralytics <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> YOLO</span>
+<span id="cb1-3"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> supervision <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> sv</span>
+<span id="cb1-4"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> shapely.geometry <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> sg</span>
+<span id="cb1-5"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> numpy <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> np</span>
+<span id="cb1-6"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> pandas <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> pd</span>
+<span id="cb1-7"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> matplotlib.pyplot <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> plt</span>
+<span id="cb1-8"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> os</span>
+<span id="cb1-9"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> shutil</span>
+<span id="cb1-10"></span>
+<span id="cb1-11"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Retina display</span></span>
+<span id="cb1-12"><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">%</span>config InlineBackend.figure_format <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'retina'</span></span>
+<span id="cb1-13"><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">%</span>matplotlib inline</span>
+<span id="cb1-14"></span>
+<span id="cb1-15"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> set_seed(seed<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">42</span>):</span>
+<span id="cb1-16">    np.random.seed(seed)</span>
+<span id="cb1-17">    torch.manual_seed(seed)</span>
+<span id="cb1-18">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> torch.cuda.is_available():</span>
+<span id="cb1-19">        torch.cuda.manual_seed_all(seed)</span>
+<span id="cb1-20">set_seed()</span>
+<span id="cb1-21"></span>
+<span id="cb1-22">device <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.device(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'cuda'</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> torch.cuda.is_available() <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'cpu'</span>)</span>
+<span id="cb1-23"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Using device:'</span>, device)</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Using device: cuda</code></pre>
+</div>
+</div>
+</section>
+<section id="data-exploration-and-understanding" class="level2">
+<h2 class="anchored" data-anchor-id="data-exploration-and-understanding">Data Exploration and Understanding</h2>
+<p>We will use the <a href="https://figshare.com/articles/dataset/Solar_Panel_Object_Labels/22081091">Solar Panel Object Labels dataset from Figshare</a>. This dataset contains high-resolution aerial images with labeled solar panels. We will use the 31 cm native resolution images of sizes 416x416 pixels for our analysis.</p>
+<p>The dataset files follow a specific naming structure: <code>solarpanels_native_&lt;image_number&gt;__x0_&lt;x_coordinate&gt;_y0_&lt;y_coordinate&gt;_dxdy_&lt;size&gt;</code>.</p>
+<p>For example, in the file <code>solarpanels_native_1__x0_0_y0_6845_dxdy_416.txt</code>:</p>
+<ul>
+<li><code>solarpanels_native</code>: Indicates that the file contains solar panel data in native resolution.</li>
+<li><code>&lt;image_number&gt;</code>: The number of the image in the dataset.</li>
+<li><code>x0_&lt;x_coordinate&gt;</code>: The x-coordinate of the top-left corner of the image.</li>
+<li><code>y0_&lt;y_coordinate&gt;</code>: The y-coordinate of the top-left corner of the image.</li>
+<li><code>dxdy_&lt;size&gt;</code>: The size of the image in pixels (both width and height).</li>
+</ul>
+<p>Each line in the file represents a detected solar panel with the following format: <code>category x_center y_center width height</code>, where:</p>
+<ul>
+<li><code>category</code>: The category label (0 for solar panels).</li>
+<li><code>x_center</code>: The x-coordinate of the center of the bounding box (normalized).</li>
+<li><code>y_center</code>: The y-coordinate of the center of the bounding box (normalized).</li>
+<li><code>width</code>: The width of the bounding box (normalized).</li>
+<li><code>height</code>: The height of the bounding box (normalized).</li>
+</ul>
+<div id="cell-5" class="cell" data-execution_count="3">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">image_dir <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'data/images_native/'</span></span>
+<span id="cb3-2">label_dir <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'data/labels_native/'</span></span>
+<span id="cb3-3">image_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">416</span></span>
+<span id="cb3-4">meters_per_pixel <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.31</span>  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># meters per pixel</span></span></code></pre></div>
+</details>
+</div>
+<div id="cell-6" class="cell">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">image_names <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sorted</span>([image_name <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> image_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> os.listdir(image_dir) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> image_name.endswith(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.tif'</span>)])</span>
+<span id="cb4-2">label_names <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sorted</span>([label_name <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> label_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> os.listdir(label_dir) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> label_name.endswith(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.txt'</span>)])</span>
+<span id="cb4-3"></span>
+<span id="cb4-4"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Number of images:'</span>, <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(image_names))</span>
+<span id="cb4-5"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Number of labels:'</span>, <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(label_names))</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Number of images: 2553
+Number of labels: 2542</code></pre>
+</div>
+</div>
+<p>The number of images and the number of labels is not the same. So, we can remove the images that do not have corresponding labels and remove the labels that do not have corresponding images.</p>
+<div id="cell-8" class="cell" data-execution_count="5">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># delete the images that do not have corresponding labels</span></span>
+<span id="cb6-2"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> image_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> image_names:</span>
+<span id="cb6-3">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> image_name.replace(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.tif'</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.txt'</span>) <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">not</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> label_names:</span>
+<span id="cb6-4">        os.remove(image_dir <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> image_name)</span>
+<span id="cb6-5"></span>
+<span id="cb6-6"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># delete the labels that do not have corresponding images</span></span>
+<span id="cb6-7"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> label_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> label_names:</span>
+<span id="cb6-8">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> label_name.replace(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.txt'</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.tif'</span>) <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">not</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> image_names:</span>
+<span id="cb6-9">        os.remove(label_dir <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> label_name)</span>
+<span id="cb6-10"></span>
+<span id="cb6-11">image_names <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sorted</span>([image_name <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> image_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> os.listdir(image_dir) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> image_name.endswith(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.tif'</span>)])</span>
+<span id="cb6-12">label_names <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sorted</span>([label_name <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> label_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> os.listdir(label_dir) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> label_name.endswith(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.txt'</span>)])</span>
+<span id="cb6-13"></span>
+<span id="cb6-14"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Number of images:'</span>, <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(image_names))</span>
+<span id="cb6-15"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Number of labels:'</span>, <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(label_names))</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Number of images: 2542
+Number of labels: 2542</code></pre>
+</div>
+</div>
+<section id="dataset-statistics" class="level3">
+<h3 class="anchored" data-anchor-id="dataset-statistics">Dataset Statistics</h3>
+<div id="cell-10" class="cell">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1">total_instances <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span></span>
+<span id="cb8-2">class_count <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> {}</span>
+<span id="cb8-3"></span>
+<span id="cb8-4"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> label_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> label_names:</span>
+<span id="cb8-5">    label_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(label_dir, label_name)</span>
+<span id="cb8-6"></span>
+<span id="cb8-7">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(label_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'r'</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb8-8">        lines <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> f.readlines()</span>
+<span id="cb8-9">        total_instances <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(lines)</span>
+<span id="cb8-10">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> line <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> lines:</span>
+<span id="cb8-11">            class_name <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> line.split()[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]</span>
+<span id="cb8-12">            class_count[class_name] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> class_count.get(class_name, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb8-13"></span>
+<span id="cb8-14">class_count <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">dict</span>(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sorted</span>(class_count.items()))</span>
+<span id="cb8-15"></span>
+<span id="cb8-16"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Total instances:'</span>, total_instances)</span>
+<span id="cb8-17"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span><span class="ch" style="color: #20794D;
+background-color: null;
+font-style: inherit;">\n</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">Number of unique classes:'</span>, <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(class_count))</span>
+<span id="cb8-18"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span><span class="ch" style="color: #20794D;
+background-color: null;
+font-style: inherit;">\n</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">Class-wise distribution:'</span>)</span>
+<span id="cb8-19"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> class_name, count <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> class_count.items():</span>
+<span id="cb8-20">    <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f'    Class </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>class_name<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>count<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span>)</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Total instances: 29625
+
+Number of unique classes: 3
+
+Class-wise distribution:
+    Class 0: 29267
+    Class 1: 130
+    Class 2: 228</code></pre>
+</div>
+</div>
+<p>Since, we are doing a detection task, I converted all labels of class 1 and 2 to class 0.</p>
+<div id="cell-12" class="cell" data-execution_count="7">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb10" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># convert all classes to 0 in the labels</span></span>
+<span id="cb10-2"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> label_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> label_names:</span>
+<span id="cb10-3">    label_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(label_dir, label_name)</span>
+<span id="cb10-4">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(label_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'r'</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb10-5">        lines <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> f.readlines()</span>
+<span id="cb10-6">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(label_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'w'</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb10-7">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> line <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> lines:</span>
+<span id="cb10-8">            f.write(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'0 '</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">' '</span>.join(line.split()[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>:]) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span><span class="ch" style="color: #20794D;
+background-color: null;
+font-style: inherit;">\n</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span>)</span>
+<span id="cb10-9"></span>
+<span id="cb10-10"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># updated class count</span></span>
+<span id="cb10-11">class_count <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> {}</span>
+<span id="cb10-12"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> label_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> label_names:</span>
+<span id="cb10-13">    label_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(label_dir, label_name)</span>
+<span id="cb10-14">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(label_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'r'</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb10-15">        lines <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> f.readlines()</span>
+<span id="cb10-16">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> line <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> lines:</span>
+<span id="cb10-17">            class_name <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> line.split()[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]</span>
+<span id="cb10-18">            class_count[class_name] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> class_count.get(class_name, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb10-19"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Updated class-wise distribution:'</span>)</span>
+<span id="cb10-20"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> class_name, count <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> class_count.items():</span>
+<span id="cb10-21">    <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f'    Class </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>class_name<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>count<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span>)</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Updated class-wise distribution:
+    Class 0: 29625</code></pre>
+</div>
+</div>
+<div id="cell-13" class="cell" data-execution_count="8">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb12" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Calculate number of images having a particular number of labels</span></span>
+<span id="cb12-2">label_distribution <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> {}</span>
+<span id="cb12-3"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> label_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> label_names:</span>
+<span id="cb12-4">    label_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(label_dir, label_name)</span>
+<span id="cb12-5">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(label_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'r'</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb12-6">        lines <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> f.readlines()</span>
+<span id="cb12-7">        num_labels <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(lines)</span>
+<span id="cb12-8">        label_distribution[num_labels] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> label_distribution.get(num_labels, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb12-9"></span>
+<span id="cb12-10">label_distribution <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">dict</span>(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sorted</span>(label_distribution.items()))</span>
+<span id="cb12-11"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Value counts of labels per image:'</span>)</span>
+<span id="cb12-12"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> num_labels, count <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> label_distribution.items():</span>
+<span id="cb12-13">    <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f'</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>count<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;"> images have </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>num_labels<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;"> labels.'</span>)</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Value counts of labels per image:
+81 images have 1 labels.
+167 images have 2 labels.
+221 images have 3 labels.
+218 images have 4 labels.
+217 images have 5 labels.
+189 images have 6 labels.
+170 images have 7 labels.
+184 images have 8 labels.
+169 images have 9 labels.
+121 images have 10 labels.
+97 images have 11 labels.
+84 images have 12 labels.
+69 images have 13 labels.
+49 images have 14 labels.
+46 images have 15 labels.
+41 images have 16 labels.
+36 images have 17 labels.
+25 images have 18 labels.
+29 images have 19 labels.
+14 images have 20 labels.
+4 images have 21 labels.
+1 images have 22 labels.
+4 images have 23 labels.
+2 images have 24 labels.
+4 images have 25 labels.
+3 images have 26 labels.
+5 images have 27 labels.
+5 images have 28 labels.
+15 images have 29 labels.
+20 images have 30 labels.
+8 images have 31 labels.
+7 images have 32 labels.
+13 images have 33 labels.
+19 images have 34 labels.
+10 images have 35 labels.
+6 images have 36 labels.
+17 images have 37 labels.
+13 images have 38 labels.
+6 images have 39 labels.
+9 images have 40 labels.
+10 images have 41 labels.
+12 images have 42 labels.
+11 images have 43 labels.
+4 images have 44 labels.
+2 images have 45 labels.
+5 images have 46 labels.
+9 images have 47 labels.
+3 images have 48 labels.
+5 images have 49 labels.
+6 images have 50 labels.
+9 images have 51 labels.
+16 images have 52 labels.
+4 images have 53 labels.
+6 images have 54 labels.
+1 images have 55 labels.
+1 images have 56 labels.
+3 images have 58 labels.
+2 images have 59 labels.
+2 images have 60 labels.
+1 images have 61 labels.
+6 images have 62 labels.
+3 images have 63 labels.
+1 images have 64 labels.
+3 images have 65 labels.
+4 images have 66 labels.
+1 images have 67 labels.
+1 images have 71 labels.
+1 images have 72 labels.
+1 images have 73 labels.
+5 images have 74 labels.
+1 images have 75 labels.
+2 images have 76 labels.
+2 images have 77 labels.
+1 images have 78 labels.</code></pre>
+</div>
+</div>
+</section>
+<section id="area-of-solar-panels" class="level3">
+<h3 class="anchored" data-anchor-id="area-of-solar-panels">Area of Solar Panels</h3>
+<p>We can calculate the area of the solar panels (in square meters) as follows:</p>
+<ol type="1">
+<li><strong>Denormalize x-width and y-width:</strong>
+<ul>
+<li>Multiply by the chip size:
+<ul>
+<li>Native resolution (31 cm): <img src="https://latex.codecogs.com/png.latex?416%20%5Ctimes%20416"></li>
+<li>HD resolution (15.5 cm): <img src="https://latex.codecogs.com/png.latex?832%20%5Ctimes%20832"></li>
+</ul></li>
+</ul></li>
+<li><strong>Convert to real-world meters:</strong>
+<ul>
+<li>Pixel size = 0.31 meters per pixel</li>
+<li>Real width &amp; height in meters: <img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7Breal%5C_width%7D%20=%20x%5C_width%20%5Ctimes%20416%20%5Ctimes%200.31%0A"> <img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7Breal%5C_height%7D%20=%20y%5C_width%20%5Ctimes%20416%20%5Ctimes%200.31%0A"></li>
+</ul></li>
+<li><strong>Compute area:</strong> <img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7Barea%7D%20=%20%5Ctext%7Breal%5C_width%7D%20%5Ctimes%20%5Ctext%7Breal%5C_height%7D%0A"></li>
+</ol>
+<div id="cell-15" class="cell" data-execution_count="9">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb14" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1">areas <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb14-2"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> label_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> label_names:</span>
+<span id="cb14-3">    label_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(label_dir, label_name)</span>
+<span id="cb14-4">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(label_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'r'</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb14-5">        lines <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> f.readlines()</span>
+<span id="cb14-6">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> line <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> lines:</span>
+<span id="cb14-7">            class_name, x_center, y_center, width, height <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">map</span>(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span>, line.split())</span>
+<span id="cb14-8">            <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># print(class_name, x_center, y_center, width, height)</span></span>
+<span id="cb14-9">            real_width <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> width <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> image_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> meters_per_pixel</span>
+<span id="cb14-10">            real_height <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> height <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> image_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> meters_per_pixel</span>
+<span id="cb14-11">            area <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> real_width <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> real_height</span>
+<span id="cb14-12">            areas.append(area)</span>
+<span id="cb14-13"></span>
+<span id="cb14-14">areas <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.array(areas)</span>
+<span id="cb14-15">mean_area <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.mean(areas)</span>
+<span id="cb14-16">std_area <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.std(areas)</span>
+<span id="cb14-17"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f'Mean area of solar panels: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>mean_area<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.2f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;"> m^2'</span>)</span>
+<span id="cb14-18"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f'Standard deviation of area of solar panels: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>std_area<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.2f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;"> m^2'</span>)</span>
+<span id="cb14-19"></span>
+<span id="cb14-20">plt.figure(figsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">8</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">6</span>))</span>
+<span id="cb14-21">plt.hist(areas, bins<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">50</span>, color<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'blue'</span>, edgecolor<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'black'</span>, alpha<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.7</span>)</span>
+<span id="cb14-22">plt.xlabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Area (m^2)'</span>)</span>
+<span id="cb14-23">plt.ylabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Frequency'</span>)</span>
+<span id="cb14-24">plt.title(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Histogram of areas of solar panels'</span>)</span>
+<span id="cb14-25">plt.grid(axis<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'y'</span>, alpha<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.75</span>)</span>
+<span id="cb14-26">plt.show()</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Mean area of solar panels: 191.52 m^2
+Standard deviation of area of solar panels: 630.70 m^2</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="https://sharduljunagade.github.io/blog/posts/solar_panel_detector/solar_panel_detector_files/figure-html/cell-9-output-2.png" width="713" height="546" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>From the above histogram, we can observe the following:</p>
+<ul>
+<li>The majority of the solar panels have areas concentrated around the lower end of the scale.</li>
+<li>There are fewer instances of solar panels with larger areas.</li>
+<li>The distribution appears to be right-skewed, indicating that most solar panels are relatively small in size, with a few larger ones.</li>
+</ul>
+</section>
+</section>
+<section id="implementing-the-fundamental-functions" class="level2">
+<h2 class="anchored" data-anchor-id="implementing-the-fundamental-functions">Implementing the Fundamental Functions</h2>
+<section id="intersection-over-union-iou" class="level3">
+<h3 class="anchored" data-anchor-id="intersection-over-union-iou">Intersection over Union (IoU)</h3>
+<p>Intersection over Union (IoU) is a metric used to evaluate the accuracy of an object detector on a particular dataset. It measures the overlap between two bounding boxes: the predicted bounding box and the ground truth bounding box.</p>
+<p>The IoU is calculated as follows:</p>
+<ol type="1">
+<li><strong>Intersection</strong>: The area of overlap between the predicted bounding box and the ground truth bounding box.</li>
+<li><strong>Union</strong>: The total area covered by both the predicted bounding box and the ground truth bounding box.</li>
+</ol>
+<p>The IoU is then computed as the ratio of the intersection area to the union area:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7BIoU%7D%20=%20%5Cfrac%7B%5Ctext%7BArea%20of%20Intersection%7D%7D%7B%5Ctext%7BArea%20of%20Union%7D%7D%0A"></p>
+<p>The IoU value ranges from 0 to 1, where:</p>
+<ul>
+<li>0 indicates no overlap between the bounding boxes.</li>
+<li>1 indicates a perfect overlap between the bounding boxes.</li>
+</ul>
+<p><strong>Usage of Shapely Library:</strong></p>
+<p>Shapely’s <code>Polygon</code> class is used to represent bounding boxes as geometric shapes, defined by their corner coordinates. The intersection area between two polygons is computed using the <code>.intersection()</code> method, which finds the overlapping region of the two bounding boxes. The union area is determined using the <code>.union()</code> method, which combines both polygons into a single shape.</p>
+<div id="cell-20" class="cell" data-execution_count="10">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb16" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># convert yolo format to x_min, y_min, x_max, y_max format</span></span>
+<span id="cb16-2"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> yolo_to_xyxy(yolo_bbox, image_size):</span>
+<span id="cb16-3">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(yolo_bbox) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">5</span>:</span>
+<span id="cb16-4">        class_id, x_center, y_center, width, height <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> yolo_bbox</span>
+<span id="cb16-5">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span>:</span>
+<span id="cb16-6">        x_center, y_center, width, height <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> yolo_bbox</span>
+<span id="cb16-7">    x_min <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> (x_center <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> width <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> image_size</span>
+<span id="cb16-8">    y_min <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> (y_center <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> height <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> image_size</span>
+<span id="cb16-9">    x_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> (x_center <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> width <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> image_size</span>
+<span id="cb16-10">    y_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> (y_center <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> height <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> image_size</span>
+<span id="cb16-11">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> x_min, y_min, x_max, y_max</span>
+<span id="cb16-12"></span>
+<span id="cb16-13"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># calculate iou using shapely</span></span>
+<span id="cb16-14"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> iou_shapely(yolo_bbox1, yolo_bbox2, image_size):</span>
+<span id="cb16-15">    x_min1, y_min1, x_max1, y_max1 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> yolo_to_xyxy(yolo_bbox1, image_size)</span>
+<span id="cb16-16">    x_min2, y_min2, x_max2, y_max2 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> yolo_to_xyxy(yolo_bbox2, image_size)</span>
+<span id="cb16-17"></span>
+<span id="cb16-18">    polygon1 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> sg.Polygon([(x_min1, y_min1), (x_max1, y_min1), (x_max1, y_max1), (x_min1, y_max1)])</span>
+<span id="cb16-19">    polygon2 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> sg.Polygon([(x_min2, y_min2), (x_max2, y_min2), (x_max2, y_max2), (x_min2, y_max2)])</span>
+<span id="cb16-20"></span>
+<span id="cb16-21">    intersection_area <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> polygon1.intersection(polygon2).area</span>
+<span id="cb16-22">    union_area <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> polygon1.union(polygon2).area</span>
+<span id="cb16-23"></span>
+<span id="cb16-24">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> union_area <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.0</span>:</span>
+<span id="cb16-25">        iou <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.0</span></span>
+<span id="cb16-26">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span>:</span>
+<span id="cb16-27">        iou <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> intersection_area <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> union_area</span>
+<span id="cb16-28">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> iou</span>
+<span id="cb16-29"></span>
+<span id="cb16-30"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># calculate iou using supervision</span></span>
+<span id="cb16-31"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> iou_supervision(yolo_bbox1, yolo_bbox2, image_size):</span>
+<span id="cb16-32">    box1 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.array([yolo_to_xyxy(yolo_bbox1, image_size)])</span>
+<span id="cb16-33">    box2 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.array([yolo_to_xyxy(yolo_bbox2, image_size)])</span>
+<span id="cb16-34">    iou_matrix <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> sv.box_iou_batch(box1, box2)</span>
+<span id="cb16-35">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> iou_matrix[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]</span></code></pre></div>
+</details>
+</div>
+<div id="cell-21" class="cell" data-execution_count="11">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb17" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Example usage on YOLO bounding boxes (class_id, x_center, y_center, width, height) </span></span>
+<span id="cb17-2">yolo_bbox1 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.1</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.1</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.6</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.6</span>]</span>
+<span id="cb17-3">yolo_bbox2 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.3</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.3</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.6</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.6</span>]</span>
+<span id="cb17-4"></span>
+<span id="cb17-5">iou1 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> iou_shapely(yolo_bbox1, yolo_bbox2, image_size)</span>
+<span id="cb17-6">iou2 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> iou_supervision(yolo_bbox1, yolo_bbox2, image_size)</span>
+<span id="cb17-7"></span>
+<span id="cb17-8"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f'IoU computed using shapely: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>iou1<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.4f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span>)</span>
+<span id="cb17-9"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f'IoU computed using supervision: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>iou2<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.4f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span>)</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>IoU computed using shapely: 0.2857
+IoU computed using supervision: 0.2857</code></pre>
+</div>
+</div>
+</section>
+<section id="average-precision-ap" class="level3">
+<h3 class="anchored" data-anchor-id="average-precision-ap">Average Precision (AP)</h3>
+<p>Average Precision (AP) is a metric used to evaluate the performance of object detection models. It summarizes the precision-recall curve into a single value, representing the average of precision values at different recall levels.</p>
+<ul>
+<li><p><strong>Precision</strong>: The ratio of true positive detections to the total number of positive detections (true positives + false positives).</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7BPrecision%7D%20=%20%5Cfrac%7B%5Ctext%7BTrue%20Positives%7D%7D%7B%5Ctext%7BTrue%20Positives%7D%20+%20%5Ctext%7BFalse%20Positives%7D%7D%0A"></p></li>
+<li><p><strong>Recall</strong>: The ratio of true positive detections to the total number of actual positives (true positives + false negatives).</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7BRecall%7D%20=%20%5Cfrac%7B%5Ctext%7BTrue%20Positives%7D%7D%7B%5Ctext%7BTrue%20Positives%7D%20+%20%5Ctext%7BFalse%20Negatives%7D%7D%0A"></p></li>
+</ul>
+<p>The precision-recall curve is plotted with precision on the y-axis and recall on the x-axis. The Average Precision (AP) is calculated as the area under the precision-recall curve.</p>
+<p>There are different methods to compute AP:</p>
+<ol type="1">
+<li><strong>Pascal VOC 11-point interpolation</strong>: Precision is sampled at 11 recall levels (0.0, 0.1, …, 1.0), and the average of these precision values is taken.</li>
+<li><strong>COCO 101-point interpolation</strong>: Precision is sampled at 101 recall levels (0.0, 0.01, …, 1.0), and the average of these precision values is taken.</li>
+<li><strong>Area under Precision-Recall Curve (PRC)</strong>: The area under the precision-recall curve is computed using numerical integration methods.</li>
+</ol>
+<div id="cell-23" class="cell" data-execution_count="12">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb19" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">from</span> sklearn.metrics <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> auc</span>
+<span id="cb19-2"></span>
+<span id="cb19-3"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> compute_ap(precisions, recalls, method<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"voc11"</span>):</span>
+<span id="cb19-4">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Pascal VOC 11-point method</span></span>
+<span id="cb19-5">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> method <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"voc11"</span>:</span>
+<span id="cb19-6">        recall_points <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.linspace(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">11</span>)</span>
+<span id="cb19-7">        ap <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.0</span></span>
+<span id="cb19-8">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> r <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> recall_points:</span>
+<span id="cb19-9">            ap <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">max</span>(precisions[recalls <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;=</span> r]) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> np.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">any</span>(recalls <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;=</span> r) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span></span>
+<span id="cb19-10">        ap <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">11</span></span>
+<span id="cb19-11">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># COCO 101-point method</span></span>
+<span id="cb19-12">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">elif</span> method <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"coco101"</span>:</span>
+<span id="cb19-13">        recall_points <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.linspace(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">101</span>)</span>
+<span id="cb19-14">        ap <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.mean([<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">max</span>(precisions[recalls <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;=</span> r]) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> np.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">any</span>(recalls <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;=</span> r) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> r <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> recall_points])</span>
+<span id="cb19-15">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># AUC method</span></span>
+<span id="cb19-16">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">elif</span> method <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"auc_pr"</span>:</span>
+<span id="cb19-17">        ap <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> auc(recalls, precisions)</span>
+<span id="cb19-18">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span>:</span>
+<span id="cb19-19">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">raise</span> <span class="pp" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">ValueError</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Invalid AP computation method."</span>)</span>
+<span id="cb19-20">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> ap</span>
+<span id="cb19-21"></span>
+<span id="cb19-22"></span>
+<span id="cb19-23"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># calculate precision and recall values</span></span>
+<span id="cb19-24"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> compute_precision_recall(gt_boxes, pred_boxes, scores, image_size, iou_threshold<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.5</span>):</span>
+<span id="cb19-25">    all_tp <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb19-26">    all_fp <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb19-27">    num_gt_boxes <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sum</span>(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(gt) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> gt <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> gt_boxes)</span>
+<span id="cb19-28">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> num_gt_boxes <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>:</span>
+<span id="cb19-29">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> np.array([]), np.array([])</span>
+<span id="cb19-30"></span>
+<span id="cb19-31">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> gt_boxes_image, pred_boxes_image, scores_image <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">zip</span>(gt_boxes, pred_boxes, scores):</span>
+<span id="cb19-32">        <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Sort predicted boxes by confidence score in descending order</span></span>
+<span id="cb19-33">        sorted_indices <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.argsort(scores_image)[::<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>]</span>
+<span id="cb19-34">        pred_boxes_image <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [pred_boxes_image[idx] <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> idx <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> sorted_indices]</span>
+<span id="cb19-35">        scores_image <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [scores_image[idx] <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> idx <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> sorted_indices]</span>
+<span id="cb19-36"></span>
+<span id="cb19-37">        tp <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.zeros(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(pred_boxes_image))</span>
+<span id="cb19-38">        fp <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.zeros(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(pred_boxes_image))</span>
+<span id="cb19-39">        gt_matched <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.zeros(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(gt_boxes_image))</span>
+<span id="cb19-40"></span>
+<span id="cb19-41">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> j, pred_box <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(pred_boxes_image):</span>
+<span id="cb19-42">            <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(gt_boxes_image) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>:</span>
+<span id="cb19-43">                fp[j] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb19-44">                <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">continue</span></span>
+<span id="cb19-45">            </span>
+<span id="cb19-46">            ious <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [iou_shapely(pred_box, gt_box, image_size) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> gt_box <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> gt_boxes_image]</span>
+<span id="cb19-47">            max_iou <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">max</span>(ious) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> ious <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span></span>
+<span id="cb19-48">            max_iou_idx <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.argmax(ious) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> ious <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb19-49"></span>
+<span id="cb19-50">            <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> max_iou <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;=</span> iou_threshold <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">and</span> max_iou_idx <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!=</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">and</span> gt_matched[max_iou_idx] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>:</span>
+<span id="cb19-51">                tp[j] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb19-52">                gt_matched[max_iou_idx] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb19-53">            <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span>:</span>
+<span id="cb19-54">                fp[j] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb19-55"></span>
+<span id="cb19-56">        all_tp.extend(tp)</span>
+<span id="cb19-57">        all_fp.extend(fp)</span>
+<span id="cb19-58"></span>
+<span id="cb19-59">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Compute Precision-Recall</span></span>
+<span id="cb19-60">    tp_cumsum <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.cumsum(all_tp)</span>
+<span id="cb19-61">    fp_cumsum <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.cumsum(all_fp)</span>
+<span id="cb19-62">    precisions <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> tp_cumsum <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> (tp_cumsum <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> fp_cumsum <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1e-8</span>)  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Avoid division by zero</span></span>
+<span id="cb19-63">    recalls <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> tp_cumsum <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> num_gt_boxes</span>
+<span id="cb19-64"></span>
+<span id="cb19-65">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> precisions, recalls</span></code></pre></div>
+</details>
+</div>
+</section>
+<section id="comparing-ap50s-on-randomly-generated-data" class="level3">
+<h3 class="anchored" data-anchor-id="comparing-ap50s-on-randomly-generated-data">Comparing AP50s on randomly generated data</h3>
+<div id="cell-25" class="cell" data-execution_count="13">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb20" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># generate random data</span></span>
+<span id="cb20-2"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> generate_random_data(num_images, image_size, num_gt_boxes, num_pred_boxes, box_size):</span>
+<span id="cb20-3">    images <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb20-4">    gt_boxes <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb20-5">    pred_boxes <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb20-6">    scores <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb20-7"></span>
+<span id="cb20-8">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> _ <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">range</span>(num_images):</span>
+<span id="cb20-9">        image <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.random.rand(image_size, image_size)</span>
+<span id="cb20-10">        images.append(image)</span>
+<span id="cb20-11"></span>
+<span id="cb20-12">        gt_boxes_image <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb20-13">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> _ <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">range</span>(num_gt_boxes):</span>
+<span id="cb20-14">            x_min <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.random.randint(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>, image_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> box_size)</span>
+<span id="cb20-15">            y_min <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.random.randint(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>, image_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> box_size)</span>
+<span id="cb20-16">            x_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> x_min <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> box_size</span>
+<span id="cb20-17">            y_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> y_min <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> box_size</span>
+<span id="cb20-18">            gt_boxes_image.append([x_min, y_min, x_max, y_max])</span>
+<span id="cb20-19">        gt_boxes.append(gt_boxes_image)</span>
+<span id="cb20-20"></span>
+<span id="cb20-21">        pred_boxes_image <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb20-22">        scores_image <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb20-23">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> _ <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">range</span>(num_pred_boxes):</span>
+<span id="cb20-24">            x_min <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.random.randint(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>, image_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> box_size)</span>
+<span id="cb20-25">            y_min <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.random.randint(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>, image_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> box_size)</span>
+<span id="cb20-26">            x_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> x_min <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> box_size</span>
+<span id="cb20-27">            y_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> y_min <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> box_size</span>
+<span id="cb20-28">            pred_boxes_image.append([x_min, y_min, x_max, y_max])</span>
+<span id="cb20-29">            scores_image.append(np.random.uniform(<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.5</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1.0</span>))</span>
+<span id="cb20-30">        pred_boxes.append(pred_boxes_image)</span>
+<span id="cb20-31">        scores.append(scores_image)</span>
+<span id="cb20-32"></span>
+<span id="cb20-33">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> images, gt_boxes, pred_boxes, scores</span></code></pre></div>
+</details>
+</div>
+<div id="cell-26" class="cell" data-execution_count="14">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb21" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1">random_num_images <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">10</span></span>
+<span id="cb21-2">random_image_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">100</span></span>
+<span id="cb21-3">random_num_gt_boxes <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">10</span></span>
+<span id="cb21-4">random_num_pred_boxes <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">10</span></span>
+<span id="cb21-5">random_box_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">20</span></span>
+<span id="cb21-6">random_images, random_gt_boxes, random_pred_boxes, random_scores <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> generate_random_data(random_num_images, random_image_size, random_num_gt_boxes, random_num_pred_boxes, random_box_size)</span></code></pre></div>
+</details>
+</div>
+<div id="cell-27" class="cell" data-execution_count="15">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb22" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1">precisions, recalls <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> compute_precision_recall(random_gt_boxes, random_pred_boxes, random_scores, random_image_size, iou_threshold<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.5</span>)</span>
+<span id="cb22-2"></span>
+<span id="cb22-3"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># plot precision-recall curve</span></span>
+<span id="cb22-4">plt.figure(figsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">8</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">6</span>))</span>
+<span id="cb22-5">plt.plot(recalls, precisions, color<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'blue'</span>, linestyle<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'-'</span>, linewidth<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>)</span>
+<span id="cb22-6">plt.xlabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Recall'</span>)</span>
+<span id="cb22-7">plt.ylabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Precision'</span>)</span>
+<span id="cb22-8">plt.title(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Precision-Recall Curve'</span>)</span>
+<span id="cb22-9">plt.grid(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>)</span>
+<span id="cb22-10">plt.show()</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="https://sharduljunagade.github.io/blog/posts/solar_panel_detector/solar_panel_detector_files/figure-html/cell-15-output-1.png" width="698" height="546" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<div id="cell-28" class="cell" data-execution_count="16">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb23" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Compute AP50</span></span>
+<span id="cb23-2">ap50_voc11 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> compute_ap(precisions, recalls, method<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"voc11"</span>)</span>
+<span id="cb23-3">ap50_coco101 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> compute_ap(precisions, recalls, method<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"coco101"</span>)</span>
+<span id="cb23-4">ap50_auc_pr <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> compute_ap(precisions, recalls, method<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"auc_pr"</span>)</span>
+<span id="cb23-5"></span>
+<span id="cb23-6"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f'AP50 using VOC11 method: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>ap50_voc11<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.4f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span>)</span>
+<span id="cb23-7"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f'AP50 using COCO101 method: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>ap50_coco101<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.4f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span>)</span>
+<span id="cb23-8"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f'AP50 using AUC-PR method: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>ap50_auc_pr<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.4f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span>)</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>AP50 using VOC11 method: 0.2685
+AP50 using COCO101 method: 0.2571
+AP50 using AUC-PR method: 0.2188</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="model-building-and-evaluation" class="level2">
+<h2 class="anchored" data-anchor-id="model-building-and-evaluation">Model Building and Evaluation</h2>
+<section id="splitting-the-data" class="level3">
+<h3 class="anchored" data-anchor-id="splitting-the-data">Splitting the Data</h3>
+<p>We will split the data into training and testing sets using an 80-20 split. We will further split the training data into training and validation sets using a 90-10 split. This will allow us to train the model on the training set and tune the hyperparameters on the validation set. The testing set will be used to evaluate the model’s performance on unseen data.</p>
+<div id="cell-31" class="cell" data-execution_count="17">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb25" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1">image_dir <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'data/images_native/'</span></span>
+<span id="cb25-2">label_dir <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'data/labels_native/'</span></span>
+<span id="cb25-3">image_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">416</span></span>
+<span id="cb25-4">meters_per_pixel <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.31</span>  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># meters per pixel</span></span></code></pre></div>
+</details>
+</div>
+<div id="cell-32" class="cell">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb26" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> split_data(image_dir, label_dir, save_dir<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"split_data"</span>, train_ratio<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.8</span>, val_ratio<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.1</span>):</span>
+<span id="cb26-2">    os.makedirs(save_dir, exist_ok<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>)</span>
+<span id="cb26-3">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> split <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> [<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"train"</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"val"</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"test"</span>]:</span>
+<span id="cb26-4">        os.makedirs(os.path.join(save_dir, split, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"images"</span>), exist_ok<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>)</span>
+<span id="cb26-5">        os.makedirs(os.path.join(save_dir, split, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"labels"</span>), exist_ok<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>)</span>
+<span id="cb26-6">    </span>
+<span id="cb26-7">    image_names <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sorted</span>([image_name <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> image_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> os.listdir(image_dir) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> image_name.endswith(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.tif'</span>)])</span>
+<span id="cb26-8">    label_names <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sorted</span>([label_name <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> label_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> os.listdir(label_dir) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> label_name.endswith(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.txt'</span>)])</span>
+<span id="cb26-9">    num_images <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(image_names)</span>
+<span id="cb26-10"></span>
+<span id="cb26-11">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># shuffle the data</span></span>
+<span id="cb26-12">    indices <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.arange(num_images)</span>
+<span id="cb26-13">    np.random.shuffle(indices)</span>
+<span id="cb26-14"></span>
+<span id="cb26-15">    train_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">int</span>(train_ratio <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> num_images)</span>
+<span id="cb26-16">    val_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">int</span>(val_ratio <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> train_size)</span>
+<span id="cb26-17">    test_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> num_images <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> train_size</span>
+<span id="cb26-18"></span>
+<span id="cb26-19">    train_indices <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> indices[:train_size]</span>
+<span id="cb26-20">    val_indices <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> train_indices[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span>val_size:]</span>
+<span id="cb26-21">    train_indices <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> train_indices[:<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span>val_size]</span>
+<span id="cb26-22">    test_indices <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> indices[train_size:]</span>
+<span id="cb26-23"></span>
+<span id="cb26-24">    <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> copy_data(indices, split):</span>
+<span id="cb26-25">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> idx <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> indices:</span>
+<span id="cb26-26">            image_src <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(image_dir, image_names[idx])</span>
+<span id="cb26-27">            label_src <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(label_dir, label_names[idx])</span>
+<span id="cb26-28"></span>
+<span id="cb26-29">            image_dst <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(save_dir, split, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"images"</span>, image_names[idx])</span>
+<span id="cb26-30">            label_dst <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(save_dir, split, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"labels"</span>, label_names[idx])</span>
+<span id="cb26-31"></span>
+<span id="cb26-32">            shutil.copy(image_src, image_dst)</span>
+<span id="cb26-33">            shutil.copy(label_src, label_dst)</span>
+<span id="cb26-34"></span>
+<span id="cb26-35">    copy_data(train_indices, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"train"</span>)</span>
+<span id="cb26-36">    copy_data(val_indices, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"val"</span>)</span>
+<span id="cb26-37">    copy_data(test_indices, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"test"</span>)</span>
+<span id="cb26-38"></span>
+<span id="cb26-39">    <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"Data split and saved in '</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>save_dir<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">/' successfully!"</span>)</span>
+<span id="cb26-40">    <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"Train:      </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(train_indices)<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;"> images"</span>)</span>
+<span id="cb26-41">    <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"Validation: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(val_indices)<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;"> images"</span>)</span>
+<span id="cb26-42">    <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"Test:       </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(test_indices)<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;"> images"</span>)</span>
+<span id="cb26-43"></span>
+<span id="cb26-44"></span>
+<span id="cb26-45"></span>
+<span id="cb26-46">split_data(image_dir, label_dir, save_dir<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"split_data"</span>, train_ratio<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.8</span>, val_ratio<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.1</span>)</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Data split and saved in 'split_data/' successfully!
+Train:      1830 images
+Validation: 203 images
+Test:       509 images</code></pre>
+</div>
+</div>
+<div id="cell-33" class="cell" data-execution_count="18">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb28" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Create YAML content with absolute paths</span></span>
+<span id="cb28-2">base_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.abspath(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'./split_data'</span>)</span>
+<span id="cb28-3">yaml_content <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"""path: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>base_path<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span></span>
+<span id="cb28-4"><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">train: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>os<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span>path<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span>join(base_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'train'</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'images'</span>)<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span></span>
+<span id="cb28-5"><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">val: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>os<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span>path<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span>join(base_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'val'</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'images'</span>)<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span></span>
+<span id="cb28-6"><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">test: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>os<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span>path<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span>join(base_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'test'</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'images'</span>)<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span></span>
+<span id="cb28-7"></span>
+<span id="cb28-8"><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">nc: 1  # number of classes</span></span>
+<span id="cb28-9"><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">names: ['solar_panel']  # class names</span></span>
+<span id="cb28-10"><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"""</span></span>
+<span id="cb28-11">data_yml_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(base_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'data.yaml'</span>)</span>
+<span id="cb28-12"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(data_yml_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'w'</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb28-13">    f.write(yaml_content)</span>
+<span id="cb28-14"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"data.yaml created at:</span><span class="ch" style="color: #20794D;
+background-color: null;
+font-style: inherit;">\n</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>data_yml_path<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span>)</span>
+<span id="cb28-15"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">del</span> base_path</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>data.yaml created at:
+c:\Users\shard\Desktop\SRIP-Project-Task\split_data\data.yaml</code></pre>
+</div>
+</div>
+<div id="cell-34" class="cell" data-execution_count="19">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb30" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(yaml_content)</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>path: c:\Users\shard\Desktop\SRIP-Project-Task\split_data
+train: c:\Users\shard\Desktop\SRIP-Project-Task\split_data\train\images
+val: c:\Users\shard\Desktop\SRIP-Project-Task\split_data\val\images
+test: c:\Users\shard\Desktop\SRIP-Project-Task\split_data\test\images
+
+nc: 1  # number of classes
+names: ['solar_panel']  # class names
+</code></pre>
+</div>
+</div>
+</section>
+<section id="training-yolo12-model" class="level3">
+<h3 class="anchored" data-anchor-id="training-yolo12-model">Training YOLO12 Model</h3>
+<div id="cell-36" class="cell">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb32" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1">model <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> YOLO(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"yolo12x.pt"</span>)</span>
+<span id="cb32-2"></span>
+<span id="cb32-3">results <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> model.train(</span>
+<span id="cb32-4">    data<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"split_data/data.yaml"</span>,</span>
+<span id="cb32-5">    epochs<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">100</span>,</span>
+<span id="cb32-6">    imgsz<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">416</span>,</span>
+<span id="cb32-7">    batch<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">100</span>,</span>
+<span id="cb32-8">    device<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>device,</span>
+<span id="cb32-9">    project<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"models"</span>,</span>
+<span id="cb32-10">    name<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"yolo12x"</span>,</span>
+<span id="cb32-11">)</span></code></pre></div>
+</details>
+</div>
+<div id="cell-37" class="cell" data-execution_count="36">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb33" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># load the best model</span></span>
+<span id="cb33-2">model <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> YOLO(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"models/yolo12x/weights/best.pt"</span>)</span></code></pre></div>
+</details>
+</div>
+<div id="cell-38" class="cell" data-execution_count="3">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb34" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1">df <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.read_csv(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'models/yolo12x/results.csv'</span>)</span>
+<span id="cb34-2">fig, (ax1, ax2) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> plt.subplots(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>, figsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">15</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">6</span>))</span>
+<span id="cb34-3"></span>
+<span id="cb34-4"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># First subplot: Training loss</span></span>
+<span id="cb34-5">ax1.plot(df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'epoch'</span>], df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'train/box_loss'</span>], label<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Box Loss'</span>)</span>
+<span id="cb34-6">ax1.plot(df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'epoch'</span>], df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'train/cls_loss'</span>], label<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Cls Loss'</span>)</span>
+<span id="cb34-7">ax1.plot(df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'epoch'</span>], df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'train/dfl_loss'</span>], label<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'DFL Loss'</span>)</span>
+<span id="cb34-8">df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'train/total_loss'</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'train/box_loss'</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'train/cls_loss'</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'train/dfl_loss'</span>]</span>
+<span id="cb34-9">ax1.plot(df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'epoch'</span>], df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'train/total_loss'</span>], label<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Total Loss'</span>)</span>
+<span id="cb34-10">ax1.set_xlabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Epoch'</span>)</span>
+<span id="cb34-11">ax1.set_ylabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Loss'</span>)</span>
+<span id="cb34-12">ax1.set_title(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Training Loss'</span>)</span>
+<span id="cb34-13">ax1.legend()</span>
+<span id="cb34-14">ax1.grid(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>)</span>
+<span id="cb34-15"></span>
+<span id="cb34-16"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Second subplot: Validation loss</span></span>
+<span id="cb34-17">ax2.plot(df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'epoch'</span>], df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'val/box_loss'</span>], label<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Box Loss'</span>)</span>
+<span id="cb34-18">ax2.plot(df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'epoch'</span>], df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'val/cls_loss'</span>], label<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Cls Loss'</span>)</span>
+<span id="cb34-19">ax2.plot(df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'epoch'</span>], df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'val/dfl_loss'</span>], label<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'DFL Loss'</span>)</span>
+<span id="cb34-20">df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'val/total_loss'</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'val/box_loss'</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'val/cls_loss'</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'val/dfl_loss'</span>]</span>
+<span id="cb34-21">ax2.plot(df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'epoch'</span>], df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'val/total_loss'</span>], label<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Total Loss'</span>)</span>
+<span id="cb34-22">ax2.set_xlabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Epoch'</span>)</span>
+<span id="cb34-23">ax2.set_ylabel(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Loss'</span>)</span>
+<span id="cb34-24">ax2.set_title(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Validation Loss'</span>)</span>
+<span id="cb34-25">ax2.legend()</span>
+<span id="cb34-26">ax2.set_ylim(ax1.get_ylim())</span>
+<span id="cb34-27">ax2.grid(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>)</span>
+<span id="cb34-28"></span>
+<span id="cb34-29">plt.tight_layout()</span>
+<span id="cb34-30">plt.show()</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="https://sharduljunagade.github.io/blog/posts/solar_panel_detector/solar_panel_detector_files/figure-html/cell-23-output-1.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<div id="cell-39" class="cell" data-execution_count="8">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb35" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Load the test data</span></span>
+<span id="cb35-2">test_images <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.listdir(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'split_data/test/images'</span>)</span>
+<span id="cb35-3">test_labels <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.listdir(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'split_data/test/labels'</span>)</span>
+<span id="cb35-4"></span>
+<span id="cb35-5"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Randomly select 3-4 images</span></span>
+<span id="cb35-6">num_images <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">4</span></span>
+<span id="cb35-7">random_images <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.random.choice(test_images, num_images, replace<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>)</span>
+<span id="cb35-8"></span>
+<span id="cb35-9">fig, axes <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> plt.subplots(num_images, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>, figsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">15</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">5</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> num_images))</span>
+<span id="cb35-10"></span>
+<span id="cb35-11"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> i, image_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(random_images):</span>
+<span id="cb35-12">    image_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'split_data/test/images'</span>, image_name)</span>
+<span id="cb35-13">    label_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'split_data/test/labels'</span>, image_name.replace(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.tif'</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.txt'</span>))</span>
+<span id="cb35-14"></span>
+<span id="cb35-15">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Predict using the trained model</span></span>
+<span id="cb35-16">    results <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> model(image_path)[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Get the first result object</span></span>
+<span id="cb35-17"></span>
+<span id="cb35-18">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Load the image</span></span>
+<span id="cb35-19">    image <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> plt.imread(image_path)</span>
+<span id="cb35-20"></span>
+<span id="cb35-21">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Plot the ground truth labels (green)</span></span>
+<span id="cb35-22">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(label_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'r'</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb35-23">        gt_labels <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> f.readlines()</span>
+<span id="cb35-24">    axes[i, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>].imshow(image)</span>
+<span id="cb35-25">    axes[i, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>].axis(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'off'</span>)</span>
+<span id="cb35-26">    axes[i, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>].set_title(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"Ground Truth: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>image_name<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span>)</span>
+<span id="cb35-27">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> gt_label <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> gt_labels:</span>
+<span id="cb35-28">        class_id, x_center, y_center, width, height <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">map</span>(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span>, gt_label.split())</span>
+<span id="cb35-29">        x_min, y_min, x_max, y_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> yolo_to_xyxy([x_center, y_center, width, height], image_size)</span>
+<span id="cb35-30">        rect <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> plt.Rectangle((x_min, y_min), x_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> x_min, y_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> y_min, linewidth<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>, edgecolor<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'green'</span>, facecolor<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'none'</span>)</span>
+<span id="cb35-31">        axes[i, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>].add_patch(rect)</span>
+<span id="cb35-32">        axes[i, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>].text(x_min, y_min <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">5</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Ground Truth'</span>, color<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'green'</span>, fontsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">8</span>, bbox<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">dict</span>(facecolor<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'white'</span>, alpha<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.5</span>))</span>
+<span id="cb35-33"></span>
+<span id="cb35-34">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Plot the predicted labels (red)</span></span>
+<span id="cb35-35">    axes[i, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>].imshow(image)</span>
+<span id="cb35-36">    axes[i, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>].axis(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'off'</span>)</span>
+<span id="cb35-37">    axes[i, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>].set_title(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"Predictions: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>image_name<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span>)</span>
+<span id="cb35-38">    boxes <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> results.boxes</span>
+<span id="cb35-39">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> box <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> boxes:</span>
+<span id="cb35-40">        x_min, y_min, x_max, y_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> box.xyxy[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>].cpu().numpy()</span>
+<span id="cb35-41">        conf <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span>(box.conf[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>])</span>
+<span id="cb35-42">        cls <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">int</span>(box.cls[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>])</span>
+<span id="cb35-43">        rect <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> plt.Rectangle((x_min, y_min), x_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> x_min, y_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> y_min, linewidth<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>, edgecolor<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'blue'</span>, facecolor<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'none'</span>)</span>
+<span id="cb35-44">        axes[i, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>].add_patch(rect)</span>
+<span id="cb35-45">        axes[i, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>].text(x_min, y_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">15</span>, <span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f'Pred: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>conf<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.2f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'</span>, color<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'blue'</span>, fontsize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">8</span>, bbox<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">dict</span>(facecolor<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'white'</span>, alpha<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.5</span>))</span>
+<span id="cb35-46"></span>
+<span id="cb35-47">plt.tight_layout()</span>
+<span id="cb35-48">plt.show()</span>
+<span id="cb35-49"></span>
+<span id="cb35-50"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># save figure</span></span>
+<span id="cb35-51">fig.savefig(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'predictions.png'</span>)</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+image 1/1 c:\Users\shard\Desktop\SRIP-Project-Task\split_data\test\images\solarpanels_native_1__x0_3870_y0_11610_dxdy_416.tif: 416x416 19 solar_panels, 124.0ms
+Speed: 2.3ms preprocess, 124.0ms inference, 4.5ms postprocess per image at shape (1, 3, 416, 416)
+
+image 1/1 c:\Users\shard\Desktop\SRIP-Project-Task\split_data\test\images\solarpanels_native_1__x0_3061_y0_8047_dxdy_416.tif: 416x416 5 solar_panels, 84.0ms
+Speed: 2.5ms preprocess, 84.0ms inference, 4.9ms postprocess per image at shape (1, 3, 416, 416)
+
+image 1/1 c:\Users\shard\Desktop\SRIP-Project-Task\split_data\test\images\solarpanels_native_3__x0_7463_y0_9890_dxdy_416.tif: 416x416 8 solar_panels, 91.4ms
+Speed: 1.7ms preprocess, 91.4ms inference, 4.3ms postprocess per image at shape (1, 3, 416, 416)
+
+image 1/1 c:\Users\shard\Desktop\SRIP-Project-Task\split_data\test\images\solarpanels_native_3__x0_8067_y0_10432_dxdy_416.tif: 416x416 2 solar_panels, 69.2ms
+Speed: 1.6ms preprocess, 69.2ms inference, 4.6ms postprocess per image at shape (1, 3, 416, 416)
+</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="https://sharduljunagade.github.io/blog/posts/solar_panel_detector/solar_panel_detector_files/figure-html/cell-24-output-2.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="model-evaluation" class="level3">
+<h3 class="anchored" data-anchor-id="model-evaluation">Model Evaluation</h3>
+<div id="cell-41" class="cell" data-execution_count="25">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb37" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> load_detections(image_path):</span>
+<span id="cb37-2">    label_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> image_path.replace(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'images'</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'labels'</span>).replace(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.tif'</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.txt'</span>)</span>
+<span id="cb37-3">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(label_path, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'r'</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb37-4">        lines <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> f.readlines()</span>
+<span id="cb37-5">    </span>
+<span id="cb37-6">    xyxy_list <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb37-7">    class_ids <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb37-8">    scores <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb37-9"></span>
+<span id="cb37-10">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> line <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> lines:</span>
+<span id="cb37-11">        class_id, x_center, y_center, width, height <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">map</span>(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span>, line.split())</span>
+<span id="cb37-12">        x_min, y_min, x_max, y_max <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> yolo_to_xyxy([x_center, y_center, width, height], image_size)</span>
+<span id="cb37-13">        xyxy_list.append([x_min, y_min, x_max, y_max])</span>
+<span id="cb37-14">        class_ids.append(class_id)</span>
+<span id="cb37-15">        scores.append(<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1.0</span>)</span>
+<span id="cb37-16"></span>
+<span id="cb37-17">    detections <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> sv.Detections(</span>
+<span id="cb37-18">        xyxy<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>np.array(xyxy_list),</span>
+<span id="cb37-19">        class_id<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>np.array(class_ids),</span>
+<span id="cb37-20">        confidence<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>np.array(scores),</span>
+<span id="cb37-21">        metadata<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>{<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"image_name"</span>: os.path.basename(image_path)}</span>
+<span id="cb37-22">    )</span>
+<span id="cb37-23"></span>
+<span id="cb37-24">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> detections</span></code></pre></div>
+</details>
+</div>
+<div id="cell-42" class="cell" data-execution_count="34">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb38" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># load the ground truth and predictions</span></span>
+<span id="cb38-2">test_images <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.listdir(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'split_data/test/images'</span>)</span>
+<span id="cb38-3">test_labels <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.listdir(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'split_data/test/labels'</span>)</span>
+<span id="cb38-4"></span>
+<span id="cb38-5">targets <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb38-6">predictions <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> []</span>
+<span id="cb38-7"></span>
+<span id="cb38-8"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> i, image_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(test_images):</span>
+<span id="cb38-9">    image_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'split_data/test/images'</span>, image_name)</span>
+<span id="cb38-10">    label_path <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> os.path.join(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'split_data/test/labels'</span>, image_name.replace(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.tif'</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'.txt'</span>))</span>
+<span id="cb38-11"></span>
+<span id="cb38-12">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Load the ground truth and predictions</span></span>
+<span id="cb38-13">    target_sv_detection <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> load_detections(image_path)</span>
+<span id="cb38-14">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># print(target_sv_detection.xyxy)</span></span>
+<span id="cb38-15"></span>
+<span id="cb38-16">    results <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> model(image_path, verbose<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>)[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>] </span>
+<span id="cb38-17">    pred_sv_detection <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> sv.Detections.from_ultralytics(results)</span>
+<span id="cb38-18">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># print(pred_sv_detection.xyxy)</span></span>
+<span id="cb38-19"></span>
+<span id="cb38-20">    targets.append(target_sv_detection)</span>
+<span id="cb38-21">    predictions.append(pred_sv_detection)</span>
+<span id="cb38-22"></span>
+<span id="cb38-23"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(targets), <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(predictions))</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>509 509</code></pre>
+</div>
+</div>
+<div id="cell-43" class="cell" data-execution_count="35">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb40" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> pickle</span>
+<span id="cb40-2"></span>
+<span id="cb40-3"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Save the detections</span></span>
+<span id="cb40-4"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"detections.pkl"</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"wb"</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb40-5">    pickle.dump({<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"targets"</span>: targets, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"predictions"</span>: predictions}, f)</span>
+<span id="cb40-6"></span>
+<span id="cb40-7"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Load the detections</span></span>
+<span id="cb40-8"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"detections.pkl"</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"rb"</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb40-9">    data <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pickle.load(f)</span>
+<span id="cb40-10">targets <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> data[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"targets"</span>]</span>
+<span id="cb40-11">predictions <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> data[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"predictions"</span>]</span>
+<span id="cb40-12"></span>
+<span id="cb40-13"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(targets), <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(predictions))</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>509 509</code></pre>
+</div>
+</div>
+<div id="cell-44" class="cell" data-execution_count="32">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb42" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Compute mAP50 using supervision</span></span>
+<span id="cb42-2">metrics <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> sv.metrics.MeanAveragePrecision()</span>
+<span id="cb42-3">results <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> metrics.update(targets, predictions).compute()</span>
+<span id="cb42-4">mAP50_supervision <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> results.map50</span>
+<span id="cb42-5"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"mAP50 using supervision: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>mAP50_supervision<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.4f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span>)</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>mAP50 using supervision: 0.9018</code></pre>
+</div>
+</div>
+<div id="cell-45" class="cell" data-execution_count="33">
+<details open="" class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb44" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Compute mAP50 using my implementation</span></span>
+<span id="cb44-2">all_gt_boxes, all_pred_boxes, all_scores <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [], [], []</span>
+<span id="cb44-3"></span>
+<span id="cb44-4"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> target, prediction <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">zip</span>(targets, predictions):</span>
+<span id="cb44-5">    all_gt_boxes.append(target.xyxy)</span>
+<span id="cb44-6">    all_pred_boxes.append(prediction.xyxy)</span>
+<span id="cb44-7">    all_scores.append(prediction.confidence)</span>
+<span id="cb44-8"></span>
+<span id="cb44-9">precisions, recalls <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> compute_precision_recall(all_gt_boxes, all_pred_boxes, all_scores, image_size, iou_threshold<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.5</span>)</span>
+<span id="cb44-10">mAP50_mine <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> compute_ap(precisions, recalls, method<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"auc_pr"</span>)</span>
+<span id="cb44-11"></span>
+<span id="cb44-12"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"mAP50 using my implementation: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>mAP50_mine<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.4f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span>)</span></code></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>mAP50 using my implementation: 0.8930</code></pre>
+</div>
+</div>
+<p><strong>TODO:</strong></p>
+<p>Create a table of Precision, Recall and F1-scores where rows are IoU thresholds [0.1, 0.3, 0.5, 0.7, 0.9] and columns are confidence thresholds [0.1, 0.3, 0.5, 0.7, 0.9]</p>
+<p>(Hint use supervision.metrics.ConfusionMatrix to get the confusion matrix and get TP, FP and FN from it to compute the P, R and F-1)</p>
 
 
+</section>
+</section>
+</section>
 
  ]]></description>
-  <category>news</category>
   <category>code</category>
-  <category>analysis</category>
-  <guid>http://localhost:6346/posts/post-with-code/</guid>
-  <pubDate>Sat, 15 Mar 2025 18:30:00 GMT</pubDate>
-  <media:content url="http://localhost:6346/posts/post-with-code/image.jpg" medium="image" type="image/jpeg"/>
+  <category>object detection</category>
+  <category>computer vision</category>
+  <guid>https://sharduljunagade.github.io/blog/posts/solar_panel_detector/solar_panel_detector.html</guid>
+  <pubDate>Thu, 27 Feb 2025 00:00:00 GMT</pubDate>
+  <media:content url="https://sharduljunagade.github.io/blog/posts/solar_panel_detector/single_prediction.png" medium="image" type="image/png" height="144" width="144"/>
 </item>
 <item>
   <title>Welcome To My Blog</title>
-  <dc:creator>Tristan O&#39;Malley</dc:creator>
-  <link>http://localhost:6346/posts/welcome/</link>
+  <dc:creator>Shardul Junagade</dc:creator>
+  <link>https://sharduljunagade.github.io/blog/posts/welcome/</link>
   <description><![CDATA[ 
 
 
@@ -44,15 +3276,17 @@
 
 
 <p>This is the first post in a Quarto blog. Welcome!</p>
-<p><img src="http://localhost:6346/posts/welcome/thumbnail.jpg" class="img-fluid"></p>
+<p><img src="https://sharduljunagade.github.io/blog/posts/welcome/thumbnail.jpg" class="img-fluid"></p>
 <p>Since this post doesn’t specify an explicit <code>image</code>, the first image in the post will be used in the listing page of posts.</p>
 
+
+<!-- -->
 
 
  ]]></description>
   <category>news</category>
-  <guid>http://localhost:6346/posts/welcome/</guid>
-  <pubDate>Wed, 12 Mar 2025 18:30:00 GMT</pubDate>
+  <guid>https://sharduljunagade.github.io/blog/posts/welcome/</guid>
+  <pubDate>Wed, 01 Jan 2025 00:00:00 GMT</pubDate>
 </item>
 </channel>
 </rss>

@@ -1,1 +1,13 @@
 /* css styles */
+
+/* .bi.bi-sort-down {
+  color: #F0F0F0;
+}
+.bi.bi-search {
+  color: #F0F0F0;
+} */
+
+/* header of blog pages (global) */
+header#title-block-header.quarto-title-block.default.page-columns.page-full {
+  margin-bottom: 0;
+}
