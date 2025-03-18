@@ -3,6 +3,7 @@ title: "Welcome To My Blog"
 author: "Shardul Junagade"
 date: "2025-01-01"
 categories: [news]
+comments: false
 ---
 
 This is the first post in a Quarto blog. Welcome!
