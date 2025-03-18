@@ -1,0 +1,56 @@
+// Google Fonts
+@import url("https://fonts.googleapis.com/css2?family=Handjet:wght@200&display=swap");
+
+/*-- scss:defaults --*/
+
+// colors
+$body-bg: #1c1c1d;
+$body-color: #f0f0f0;
+$link-color: #11d68b;
+$input-bg: #1c1c1d;
+$popover-bg: #1c1c1d;
+
+// code blocks
+$code-block-bg: #262626; //background color of coded block
+$code-bg: #262626; //background color of inline code
+$code-color: #11d68b; //text color of inline code
+$btn-code-copy-color-active: #11d68b; //color of copy button when active
+
+// navbar
+$navbar-bg: #1c1c1d; //background color of navbar
+$navbar-fg: #f0f0f0; //foreground color of navbar
+$navbar-hl: #11d68b; //highlight color of navbar
+
+/*-- scss:rules --*/
+// title of blog post
+#title-block-header.quarto-title-block.default .quarto-title .title {
+  font-family: "Handjet";
+  font-size: $font-size-base * 4;
+}
+
+// top navbar header
+#quarto-header {
+  border-bottom: 1px solid #333;
+}
+
+// background of sort and search bar
+span.input-group-text {
+  background-color: #333;
+}
+
+// category list in sidebar
+.quarto-listing-category.category-default .category.active,
+.quarto-listing-category.category-default .category:hover {
+  color: #11d68b;
+}
+
+// category tags of blog posts
+div.quarto-post .listing-categories .listing-category {
+  // color: #6c757d !important;
+  border: 1px solid #6c757d !important;
+}
+
+// code output
+div.cell-output pre code {
+  color: #ddd;
+}

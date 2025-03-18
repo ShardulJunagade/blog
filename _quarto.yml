@@ -3,7 +3,7 @@ project:
 
 website:
   title: "shardul's blog"
-  site-url: http://localhost:6346/
+  site-url: https://sharduljunagade.github.io/blog/
   description: "shardul's blog"
   navbar:
     right:
@@ -22,18 +22,25 @@ website:
         href: https://github.com/ShardulJunagade/blog
       - icon: linkedin
         href: https://www.linkedin.com/in/shardul-junagade/
-      - icon: twitter
+      - icon: twitter-x
         href: https://twitter.com/Sh4rdulX
+      - icon: rss
+        href: index.xml
       # - icon: rss
       #   href: index.xml
-  search: 
+  search:
     keyboard-shortcut: [/, s, f]
 format:
   html:
+    smooth-scroll: true
     theme:
-      - cosmo
-      - brand
+      light: [cosmo, theme-light.scss]
+      dark: [cosmo, theme-dark.scss]
     css: styles.css
+    header-includes: |
+      <link rel="stylesheet" media="screen" href="https://fonts.googleapis.com/css2?family=Poppins" type="text/css"/>
+    mainfont: Poppins, sans-serif
+    # monofont: JetBrainsMono, monospace (not needed)
 
 execute:
   freeze: auto

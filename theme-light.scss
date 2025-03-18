@@ -1,0 +1,37 @@
+// Google Fonts
+@import url("https://fonts.googleapis.com/css2?family=Handjet:wght@200&display=swap");
+
+/*-- scss:defaults --*/
+
+// colors
+$body-bg: #ffffff;
+$body-color: #000000;
+$link-color: #b509ac;
+$input-bg: #ffffff;
+$popover-bg: #ffffff;
+
+// code blocks
+$code-color: #b509ac;
+$btn-code-copy-color-active: #b509ac;
+
+// navbar
+// $navbar-bg: #ffffff;
+// $navbar-fg: #000000;
+// $navbar-hl: #b509ac;
+
+/*-- scss:rules --*/
+// title of blog post
+#title-block-header.quarto-title-block.default .quarto-title .title {
+  font-family: "Handjet";
+  font-size: $font-size-base * 4;
+}
+
+// top navbar header
+.quarto-listing-category.category-default .category.active {
+  color: #b509ac;
+}
+
+// background of sort and search bar
+.quarto-listing-category.category-default .category.hover {
+  color: #b509ac;
+}
