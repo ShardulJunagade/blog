@@ -1,3 +1,7 @@
+# Quarto
+/.quarto/
+_site
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -172,6 +176,3 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-
-/.quarto/
-_site

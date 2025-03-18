@@ -8,6 +8,8 @@ listing:
   sort-ui: true
   filter-ui: true
   feed: true
+  exclude:
+    title: "Post With Code"
 page-layout: full
 title-block-banner: true
 ---
