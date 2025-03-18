@@ -6,3 +6,12 @@ freeze: true
 
 # Enable banner style title blocks
 title-block-banner: true
+
+format:
+   html:
+     toc: true
+     code-fold: show
+     code-tools: true
+     code-line-numbers: false
+     code-copy: true
+     code-overflow: wrap
