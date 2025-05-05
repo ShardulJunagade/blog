@@ -1,23 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://sharduljunagade.github.io/blog/posts/welcome/index.html</loc>
-    <lastmod>2025-03-18T10:42:40.846Z</lastmod>
-  </url>
-  <url>
-    <loc>https://sharduljunagade.github.io/blog/posts/post-with-code/index.html</loc>
-    <lastmod>2025-03-18T10:42:40.826Z</lastmod>
-  </url>
-  <url>
     <loc>https://sharduljunagade.github.io/blog/index.html</loc>
-    <lastmod>2025-03-18T10:42:40.826Z</lastmod>
+    <lastmod>2025-05-05T11:15:20.610Z</lastmod>
   </url>
   <url>
-    <loc>https://sharduljunagade.github.io/blog/about.html</loc>
-    <lastmod>2025-03-18T10:42:40.825Z</lastmod>
+    <loc>https://sharduljunagade.github.io/blog/posts/welcome/index.html</loc>
+    <lastmod>2025-05-05T11:15:20.634Z</lastmod>
   </url>
   <url>
     <loc>https://sharduljunagade.github.io/blog/posts/solar_panel_detector/solar_panel_detector.html</loc>
-    <lastmod>2025-03-18T10:42:40.845Z</lastmod>
+    <lastmod>2025-05-05T11:15:20.633Z</lastmod>
+  </url>
+  <url>
+    <loc>https://sharduljunagade.github.io/blog/posts/ml-publication-trends/ml_publication_trends.html</loc>
+    <lastmod>2025-05-05T11:15:20.615Z</lastmod>
+  </url>
+  <url>
+    <loc>https://sharduljunagade.github.io/blog/posts/post-with-code/index.html</loc>
+    <lastmod>2025-05-05T11:15:20.615Z</lastmod>
+  </url>
+  <url>
+    <loc>https://sharduljunagade.github.io/blog/about.html</loc>
+    <lastmod>2025-05-05T11:15:20.610Z</lastmod>
   </url>
 </urlset>

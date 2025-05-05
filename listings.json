@@ -2,6 +2,7 @@
   {
     "listing": "/index.html",
     "items": [
+      "/posts/ml-publication-trends/ml_publication_trends.html",
       "/posts/solar_panel_detector/solar_panel_detector.html",
       "/posts/welcome/index.html"
     ]
