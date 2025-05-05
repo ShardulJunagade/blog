@@ -11,3 +11,34 @@
 header#title-block-header.quarto-title-block.default.page-columns.page-full {
   margin-bottom: 0;
 }
+
+
+/* Remove color-specific footer styles, keep only layout and spacing */
+footer {
+  padding: 0 1.2em;
+}
+.footer-sub {
+  display: block;
+  font-size: 0.9em;
+  margin-top: 0.4em;
+}
+footer .nav-footer-right a {
+  margin-left: 1.2em;
+  text-decoration: none;
+}
+footer .nav-footer-right a:hover {
+  text-decoration: underline;
+}
+.footer-external-link {
+  position: relative;
+  padding-right: 1em;
+}
+.footer-external-link::after {
+  content: "";
+  display: inline-block;
+  position: absolute;
+  right: 0;
+  top: 0.25em;
+  width: 10px;
+  height: 10px;
+}

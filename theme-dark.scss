@@ -54,3 +54,38 @@ div.quarto-post .listing-categories .listing-category {
 div.cell-output pre code {
   color: #ddd;
 }
+
+
+
+// Footer styles for dark mode
+footer {
+  background: #18181a;
+  color: #e0e0e0;
+}
+footer .nav-footer-right a {
+  color: #e0e0e0;
+}
+footer .nav-footer-right a:hover {
+  color: #11d68b;
+}
+.footer-sub {
+  color: #888;
+}
+.footer-name {
+  color: #e0e0e0;
+}
+.footer-external-link::after {
+  content: "↗";
+  display: inline-block;
+  position: absolute;
+  right: 0;
+  top: 0.25em;
+  width: 1em;
+  height: 1em;
+  color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.07102 11.3494L0.963068 10.2415L9.2017 1.98864H2.83807L2.85227 0.454545H11.8438V9.46023H10.2955L10.3097 3.09659L2.07102 11.3494Z' fill='%23ffffff'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-color: #0002;
+  z-index: 10;
+}

@@ -35,3 +35,38 @@ $btn-code-copy-color-active: #b509ac;
 .quarto-listing-category.category-default .category.hover {
   color: #b509ac;
 }
+
+
+
+// Footer styles for light mode
+footer {
+  background: #f8f9fa;
+  color: #222;
+}
+footer .nav-footer-right a {
+  color: #222;
+}
+footer .nav-footer-right a:hover {
+  color: #b509ac;
+}
+.footer-sub {
+  color: #888;
+}
+.footer-name {
+  color: #222;
+}
+.footer-external-link::after {
+  content: "↗";
+  display: inline-block;
+  position: absolute;
+  right: 0;
+  top: 0.25em;
+  width: 1em;
+  height: 1em;
+  color: #000;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.07102 11.3494L0.963068 10.2415L9.2017 1.98864H2.83807L2.85227 0.454545H11.8438V9.46023H10.2955L10.3097 3.09659L2.07102 11.3494Z' fill='%23000000'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-color: #fff2;
+  z-index: 10;
+}

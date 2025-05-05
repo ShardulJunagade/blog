@@ -30,6 +30,21 @@ website:
       #   href: index.xml
   search:
     keyboard-shortcut: [/, s, f]
+  page-footer:
+    left:
+      - text: "<span class='footer-name'>Shardul Junagade © 2025.</span><br><span class='footer-sub'>This website was designed and made by me using <a href='https://quarto.org/' target='_blank'>Quarto</a> and hosted using <a href='https://pages.github.com/' target='_blank'>GitHub Pages</a>!</span>"
+    right:
+      - text: "<span class='footer-external-link'>GitHub</span>"
+        href: "https://github.com/ShardulJunagade"
+      - text: "<span class='footer-external-link'>Email</span>"
+        href: "mailto:shardul.junagade@gmail.com"
+      - text: "<span class='footer-external-link'>LinkedIn</span>"
+        href: "https://linkedin.com/in/shardul-junagade"
+      # - text: "<span class='footer-external-link'>WhatsApp</span>"
+      #   href: "https://wa.me/YOURNUMBER"
+      - text: "<span class='footer-external-link'>X</span>"
+        href: "https://x.com/Sh4rdulX"
+
 format:
   html:
     smooth-scroll: true
@@ -44,4 +59,3 @@ format:
 
 execute:
   freeze: auto
-
